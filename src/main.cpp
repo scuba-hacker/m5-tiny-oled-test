@@ -5,8 +5,10 @@
 #endif
 #include <Wire.h>
 #include <U8g2lib.h>
+#include <esp_system.h>
 #include <math.h>
 #include "cobra_demo.h"
+#include "linear_compass_demo.h"
 #include "power_stats.h"
 
 #define POWER_TEST_DEMOS_ENABLED 0
@@ -71,6 +73,7 @@ void demoWeatherRain(uint32_t localMs, bool firstFrame);
 void demoWeatherSnow(uint32_t localMs, bool firstFrame);
 
 const DemoPage demos[] = {
+    {"COMPASS", demoLinearCompass, 60000},
 #if POWER_TEST_DEMOS_ENABLED
     {"BLACK", demoPowerBlack, 5000},
     {"WHITE", demoPowerWhite, 5000},
@@ -120,6 +123,42 @@ void startDemo(uint8_t index)
     demoStartedAt = millis();
     demoFirstFrame = true;
     beginPowerStatsWindow(demoStartedAt);
+}
+
+void restartCarousel()
+{
+    stopLinearCompassDemo();
+    showingPowerStatsInterstitial = false;
+    nextDemoAfterPowerStats = 0;
+    lastFrameAt = 0;
+    startDemo(0);
+    Serial.println("Carousel restarted");
+}
+
+void restartDevice()
+{
+    stopLinearCompassDemo();
+    Serial.println("Button B pressed: esp_restart()");
+    Serial.flush();
+    delay(50);
+    tinyOLEDDisplay.clearBuffer();
+    tinyOLEDDisplay.sendBuffer();
+    esp_restart();
+}
+
+void handleButtons()
+{
+#if TARGET_M5STICKC_PLUS
+    M5.update();
+
+    if (M5.BtnB.wasPressed()) {
+        restartDevice();
+    }
+
+    if (M5.BtnA.wasPressed()) {
+        restartCarousel();
+    }
+#endif
 }
 
 void drawTitle(const char *title)
@@ -1554,9 +1593,9 @@ void setup()
     M5.begin();
     M5.Lcd.fillScreen(TFT_RED);
     delay(1000);
-    M5.Lcd.fillScreen(TFT_BLACK);
+//    M5.Lcd.fillScreen(TFT_BLACK);
 //    M5.Axp.ScreenBreath(1);
-    M5.Axp.SetLDO2(false);   // cuts LCD logic power
+//    M5.Axp.SetLDO2(false);   // cuts LCD logic power
 #endif
 
     tinyOLEDDisplay.setI2CAddress(I2C_ADDRESS);
@@ -1582,6 +1621,8 @@ void setup()
 
 void loop()
 {
+    handleButtons();
+
     if (!oledReady) {
         return;
     }
@@ -1612,6 +1653,7 @@ void loop()
     if (localMs >= demos[currentDemo].durationMs) {
         uint8_t nextDemo = (currentDemo + 1) % demoCount;
 
+        stopLinearCompassDemo();
         finalizePowerStatsWindow(demos[currentDemo].name, now);
         uint32_t interstitialDurationMs = powerStatsInterstitialDurationMs();
         if (powerStatsInterstitialIsEnabled() && interstitialDurationMs > 0) {

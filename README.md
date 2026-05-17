@@ -1,2 +1,2 @@
-# m5-ui-test
-Used for building and testing M5 stick screens
+# m5-ui-tiny-oled-test
+Used for building and testing screens and demos for 128x64 OLED screen
